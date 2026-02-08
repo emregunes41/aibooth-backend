@@ -78,7 +78,7 @@ export default async function handler(req, res) {
                     negative_prompt: "bad quality, worst quality, low resolution, blurry face, distorted face, bad anatomy, bad eyes, crossed eyes, disfigured, extra fingers, cartoon, anime",
                     width: 832,
                     height: 1216,
-                    num_steps: 25,
+                    num_steps: 20, // Reverted to 20 due to API limit
                     guidance: 3.5,
                     seed: Math.floor(Math.random() * 1000000),
                     true_cfg: 1,
