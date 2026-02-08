@@ -68,25 +68,27 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Görsel ve prompt gerekli" });
         }
 
-        // Call Replicate API
+        // Call Replicate API - Using benjaming/flux (wrapper for dev/schnell) for cheaper generation
+        // Model: benjaming/flux
+        // Version: 7456b4edc96c9c1be4398874865c7b2563920186032c858e8061e14692673ad2
         const output = await replicate.run(
-            "zsxkib/flux-pulid:8baa7ef2255075b46f4d91cd238c21d31181b3e6a864463f967960bb0112525b",
+            "benjaming/flux:7456b4edc96c9c1be4398874865c7b2563920186032c858e8061e14692673ad2",
             {
                 input: {
-                    main_face_image: `data:image/jpeg;base64,${image}`,
-                    prompt: `${prompt}, perfect face match, high fidelity identity, photorealistic, 8k, medium shot, 2:3 aspect ratio, detailed eyes, detailed texture`,
-                    negative_prompt: "bad quality, worst quality, low resolution, blurry face, distorted face, bad anatomy, bad eyes, crossed eyes, disfigured, extra fingers, cartoon, anime",
+                    model: "schnell", // Cheap processing
+                    image: `data:image/jpeg;base64,${image}`, // Img2img input
+                    prompt: `${prompt}, medium shot, 2:3 aspect ratio, detailed eyes, detailed texture`, // Removed "perfect face match" as it's not Pulid
                     width: 832,
                     height: 1216,
-                    num_steps: 20, // Reverted to 20 due to API limit
-                    guidance: 3.5,
+                    num_inference_steps: 4, // Fast steps for Schnell
+                    guidance_scale: 3.5,
+                    prompt_strength: 0.8, // Control how much the image changes (0.8 = heavy change, 0.6 = keeping more original)
                     seed: Math.floor(Math.random() * 1000000),
-                    true_cfg: 1,
-                    id_weight: 1.2, // Increased for better face matching
                     num_outputs: 1,
                     output_format: "webp",
                     output_quality: 95,
-                    start_step: 0,
+                    go_fast: true,
+                    disable_safety_checker: false
                 },
             }
         );
