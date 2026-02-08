@@ -68,69 +68,45 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Görsel ve prompt gerekli" });
         }
 
-        // Call Replicate API - Hybrid Approach (Flux Schnell + FaceSwap)
-        // Step 1: Generate base image with Flux Schnell (Fast & Cheap)
-        console.log("Step 1: Generating base image with Flux Schnell...");
-        const fluxOutput = await replicate.run(
-            "benjaming/flux:7456b4edc96c9c1be4398874865c7b2563920186032c858e8061e14692673ad2",
+        // Call Replicate API - InstantID Implementation
+        // Model: zsxkib/instant-id -> Using "juggernaut-xl-v8" weights for best realism
+        console.log("Generating with InstantID...");
+        const output = await replicate.run(
+            "zsxkib/instant-id:nqgnbwp069rgg0cfs79rpergec",
             {
                 input: {
-                    model: "schnell",
-                    image: `data:image/jpeg;base64,${image}`,
-                    prompt: `${prompt}, medium shot, 2:3 aspect ratio, detailed eyes, detailed texture`,
+                    image: `data:image/jpeg;base64,${image}`, // Identity Source
+                    pose_image: `data:image/jpeg;base64,${image}`, // Pose Source (Use user's pose)
+                    prompt: `${prompt}, photorealistic, 8k, highly detailed, cinematic lighting`,
+                    negative_prompt: "bad quality, worst quality, low resolution, blurry, distorted face, bad anatomy, bad eyes, crossed eyes, disfigured, extra fingers, cartoon, anime, illustration",
+                    sdxl_weights: "juggernaut-xl-v8", // High quality photorealism
+                    ip_adapter_scale: 0.8, // Strong identity
+                    controlnet_conditioning_scale: 0.8, // Strong pose control
+                    num_inference_steps: 30, // Standard steps for quality
+                    guidance_scale: 5,
+                    enable_lcm: false, // Turn off LCM for better quality
+                    scheduler: "EulerDiscreteScheduler",
                     width: 832,
                     height: 1216,
-                    num_inference_steps: 4,
-                    guidance_scale: 3.5,
-                    prompt_strength: 0.8, // Allow heavy change to fit theme
-                    seed: Math.floor(Math.random() * 1000000),
                     num_outputs: 1,
                     output_format: "webp",
                     output_quality: 95,
-                    go_fast: true,
-                    disable_safety_checker: false
+                    disable_safety_checker: false,
+                    enhance_nonface_region: true
                 },
             }
         );
 
-        if (!fluxOutput || fluxOutput.length === 0) {
-            return res.status(500).json({ error: "Step 1: Flux AI görsel üretemedi" });
-        }
-
-        const generatedImageUrl = fluxOutput[0];
-        console.log("Step 1 Complete. URL:", generatedImageUrl);
-
-        // Step 2: Swap Face using lucataco/faceswap (InsightFace)
-        // Model: lucataco/faceswap:9a4298548422074c3f57258c5d544497314ae4112df80d116f0d2109bd92a8af
-        console.log("Step 2: Swapping face...");
-        const swapOutput = await replicate.run(
-            "lucataco/faceswap:9a4298548422074c3f57258c5d544497314ae4112df80d116f0d2109bd92a8af",
-            {
-                input: {
-                    target_image: generatedImageUrl,
-                    swap_image: `data:image/jpeg;base64,${image}`,
-                }
-            }
-        );
-
-        let finalImageUrl;
-        if (swapOutput) {
-            // Swap output is commonly a string URL or object depending on version
-            // Based on schema check, it is URI string
-            finalImageUrl = typeof swapOutput === 'string' ? swapOutput : swapOutput[0];
-        } else {
-            // Fallback to Flux output if swap fails? Or error?
-            console.error("Step 2 Failed. Falling back to Flux output.");
-            finalImageUrl = generatedImageUrl;
-        }
-
-        // For consistency with existing code, wrap in array if needed or just handle it
-        const output = [finalImageUrl];
-
-
         if (!output || output.length === 0) {
-            return res.status(500).json({ error: "AI görsel üretemedi" });
+            return res.status(500).json({ error: "InstantID görsel üretemedi" });
         }
+
+        // Get the image and return
+        // InstantID output should be an array of URIs
+        const imageUrl = output[0];
+        const imageResponse = await fetch(imageUrl);
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const base64Image = Buffer.from(imageBuffer).toString("base64");
 
         // Deduct credit
         const { error: updateError } = await supabase
@@ -151,12 +127,6 @@ export default async function handler(req, res) {
             credits_used: 1,
             theme_name: themeName || "Unknown",
         });
-
-        // Get the image and return
-        const imageUrl = output[0];
-        const imageResponse = await fetch(imageUrl);
-        const imageBuffer = await imageResponse.arrayBuffer();
-        const base64Image = Buffer.from(imageBuffer).toString("base64");
 
         return res.status(200).json({
             success: true,
