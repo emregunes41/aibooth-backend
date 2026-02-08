@@ -74,15 +74,19 @@ export default async function handler(req, res) {
             {
                 input: {
                     main_face_image: `data:image/jpeg;base64,${image}`,
-                    prompt: prompt,
-                    num_steps: 20,
-                    guidance: 4,
+                    prompt: `${prompt}, perfect face match, high fidelity identity, photorealistic, 8k, medium shot, 2:3 aspect ratio, detailed eyes, detailed texture`,
+                    negative_prompt: "bad quality, worst quality, low resolution, blurry face, distorted face, bad anatomy, bad eyes, crossed eyes, disfigured, extra fingers, cartoon, anime",
+                    width: 832,
+                    height: 1216,
+                    num_steps: 25,
+                    guidance: 3.5,
                     seed: Math.floor(Math.random() * 1000000),
                     true_cfg: 1,
-                    id_weight: 1,
+                    id_weight: 1.2, // Increased for better face matching
                     num_outputs: 1,
                     output_format: "webp",
-                    output_quality: 90,
+                    output_quality: 95,
+                    start_step: 0,
                 },
             }
         );
