@@ -1,0 +1,13 @@
+{
+    "name": "aibooth-backend",
+    "version": "1.0.0",
+    "description": "AI Booth backend API with auth and credits",
+    "type": "module",
+    "scripts": {
+        "dev": "vercel dev"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.39.0",
+        "replicate": "^0.25.0"
+    }
+}
