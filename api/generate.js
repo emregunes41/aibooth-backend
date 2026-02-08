@@ -72,7 +72,7 @@ export default async function handler(req, res) {
         // Model: zsxkib/instant-id -> Using "juggernaut-xl-v8" weights for best realism
         console.log("Generating with InstantID...");
         const output = await replicate.run(
-            "zsxkib/instant-id:nqgnbwp069rgg0cfs79rpergec",
+            "zsxkib/instant-id:2e4785a4d80dadf580077b2244c8d7c05d8e3faac04a04c02d8e099dd2876789",
             {
                 input: {
                     image: `data:image/jpeg;base64,${image}`, // Identity Source
