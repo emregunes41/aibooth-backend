@@ -68,29 +68,65 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Görsel ve prompt gerekli" });
         }
 
-        // Call Replicate API - Reverting to Flux PuLID for best quality
-        // Using "dev" based model which preserves face identity perfecty
-        const output = await replicate.run(
-            "zsxkib/flux-pulid:8baa7ef2255075b46f4d91cd238c21d31181b3e6a864463f967960bb0112525b",
+        // Call Replicate API - Hybrid Approach (Flux Schnell + FaceSwap)
+        // Step 1: Generate base image with Flux Schnell (Fast & Cheap)
+        console.log("Step 1: Generating base image with Flux Schnell...");
+        const fluxOutput = await replicate.run(
+            "benjaming/flux:7456b4edc96c9c1be4398874865c7b2563920186032c858e8061e14692673ad2",
             {
                 input: {
-                    main_face_image: `data:image/jpeg;base64,${image}`,
-                    prompt: `${prompt}, perfect face match, high fidelity identity, photorealistic, 8k, medium shot, 2:3 aspect ratio, detailed eyes, detailed texture`,
-                    negative_prompt: "bad quality, worst quality, low resolution, blurry face, distorted face, bad anatomy, bad eyes, crossed eyes, disfigured, extra fingers, cartoon, anime",
+                    model: "schnell",
+                    image: `data:image/jpeg;base64,${image}`,
+                    prompt: `${prompt}, medium shot, 2:3 aspect ratio, detailed eyes, detailed texture`,
                     width: 832,
                     height: 1216,
-                    num_steps: 20, // Keep at 20 for quality. Lowering might degrade face.
-                    guidance: 3.5,
+                    num_inference_steps: 4,
+                    guidance_scale: 3.5,
+                    prompt_strength: 0.8, // Allow heavy change to fit theme
                     seed: Math.floor(Math.random() * 1000000),
-                    true_cfg: 1,
-                    id_weight: 1.25, // Slightly increased from 1.2 for simpler prompts
                     num_outputs: 1,
                     output_format: "webp",
                     output_quality: 95,
-                    start_step: 0,
+                    go_fast: true,
+                    disable_safety_checker: false
                 },
             }
         );
+
+        if (!fluxOutput || fluxOutput.length === 0) {
+            return res.status(500).json({ error: "Step 1: Flux AI görsel üretemedi" });
+        }
+
+        const generatedImageUrl = fluxOutput[0];
+        console.log("Step 1 Complete. URL:", generatedImageUrl);
+
+        // Step 2: Swap Face using lucataco/faceswap (InsightFace)
+        // Model: lucataco/faceswap:9a4298548422074c3f57258c5d544497314ae4112df80d116f0d2109bd92a8af
+        console.log("Step 2: Swapping face...");
+        const swapOutput = await replicate.run(
+            "lucataco/faceswap:9a4298548422074c3f57258c5d544497314ae4112df80d116f0d2109bd92a8af",
+            {
+                input: {
+                    target_image: generatedImageUrl,
+                    swap_image: `data:image/jpeg;base64,${image}`,
+                }
+            }
+        );
+
+        let finalImageUrl;
+        if (swapOutput) {
+            // Swap output is commonly a string URL or object depending on version
+            // Based on schema check, it is URI string
+            finalImageUrl = typeof swapOutput === 'string' ? swapOutput : swapOutput[0];
+        } else {
+            // Fallback to Flux output if swap fails? Or error?
+            console.error("Step 2 Failed. Falling back to Flux output.");
+            finalImageUrl = generatedImageUrl;
+        }
+
+        // For consistency with existing code, wrap in array if needed or just handle it
+        const output = [finalImageUrl];
+
 
         if (!output || output.length === 0) {
             return res.status(500).json({ error: "AI görsel üretemedi" });
