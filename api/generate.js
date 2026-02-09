@@ -1,11 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
+import Replicate from "replicate";
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const FAL_KEY = process.env.FAL_KEY;
+const replicate = new Replicate({
+    auth: process.env.REPLICATE_API_TOKEN,
+});
 
 export default async function handler(req, res) {
     // CORS
@@ -65,77 +68,35 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Görsel ve prompt gerekli" });
         }
 
-        // ============================================================
-        // FAL.AI HYBRID APPROACH
-        // Step 1: Generate scene with Flux Schnell (fast, cheap)
-        // Step 2: Swap user's face onto the generated scene
-        // ============================================================
+        // Call Replicate API - Flux PuLID (Known working model)
+        console.log("Generating with Flux PuLID...");
+        const output = await replicate.run(
+            "zsxkib/flux-pulid:8baa7ef2255075b46f4d91cd238c21d31181b3e6a864463f967960bb0112525b",
+            {
+                input: {
+                    main_face_image: `data:image/jpeg;base64,${image}`,
+                    prompt: prompt,
+                    num_steps: 20,
+                    guidance_scale: 4,
+                    id_weight: 1.0,
+                    start_step: 0,
+                    true_cfg: 1,
+                    width: 832,
+                    height: 1216,
+                    num_outputs: 1,
+                    output_format: "webp",
+                    output_quality: 90
+                },
+            }
+        );
 
-        console.log("Step 1: Generating scene with fal.ai Flux Schnell...");
-
-        // Step 1: Generate base scene
-        const fluxResponse = await fetch("https://fal.run/fal-ai/flux/schnell", {
-            method: "POST",
-            headers: {
-                "Authorization": `Key ${FAL_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                prompt: `${prompt}, photorealistic, high quality, detailed, professional photography`,
-                image_size: "portrait_4_3",
-                num_inference_steps: 4,
-                num_images: 1,
-                enable_safety_checker: false
-            })
-        });
-
-        if (!fluxResponse.ok) {
-            const error = await fluxResponse.text();
-            console.error("Flux error:", error);
-            return res.status(500).json({ error: "Sahne üretilemedi: " + error });
+        if (!output || output.length === 0) {
+            return res.status(500).json({ error: "AI görsel üretemedi" });
         }
 
-        const fluxData = await fluxResponse.json();
-        const sceneImageUrl = fluxData.images?.[0]?.url;
-
-        if (!sceneImageUrl) {
-            return res.status(500).json({ error: "Sahne görseli alınamadı" });
-        }
-
-        console.log("Step 1 Complete. Scene URL:", sceneImageUrl);
-
-        // Step 2: Face Swap - Put user's face onto the generated scene
-        console.log("Step 2: Swapping face with fal.ai...");
-
-        const swapResponse = await fetch("https://fal.run/fal-ai/face-swap", {
-            method: "POST",
-            headers: {
-                "Authorization": `Key ${FAL_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                base_image_url: sceneImageUrl,
-                swap_image_url: `data:image/jpeg;base64,${image}`
-            })
-        });
-
-        if (!swapResponse.ok) {
-            const error = await swapResponse.text();
-            console.error("Face swap error:", error);
-            // Fallback to scene without face swap if it fails
-            console.log("Face swap failed, returning scene only");
-        }
-
-        let finalImageUrl = sceneImageUrl;
-
-        if (swapResponse.ok) {
-            const swapData = await swapResponse.json();
-            finalImageUrl = swapData.image?.url || swapData.output?.url || sceneImageUrl;
-            console.log("Step 2 Complete. Final URL:", finalImageUrl);
-        }
-
-        // Fetch the final image and convert to base64
-        const imageResponse = await fetch(finalImageUrl);
+        // Get the image and return
+        const imageUrl = output[0];
+        const imageResponse = await fetch(imageUrl);
         const imageBuffer = await imageResponse.arrayBuffer();
         const base64Image = Buffer.from(imageBuffer).toString("base64");
 
@@ -161,7 +122,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
             success: true,
-            output: finalImageUrl,
+            output: imageUrl,
             image: base64Image,
             remainingCredits: creditData.balance - 1,
         });
