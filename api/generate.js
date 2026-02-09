@@ -78,7 +78,7 @@ export default async function handler(req, res) {
                     prompt: prompt,
                     num_steps: 20,
                     guidance_scale: 4,
-                    id_weight: 1.0,
+                    id_weight: 1.3,
                     start_step: 0,
                     true_cfg: 1,
                     width: 832,
