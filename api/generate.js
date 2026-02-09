@@ -68,47 +68,32 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: "Görsel ve prompt gerekli" });
         }
 
-        // Call Replicate API - InstantID Implementation
-        // Model: zsxkib/instant-id -> Using "juggernaut-xl-v8" weights for best realism
-        console.log("Generating with InstantID...");
+        // Call Replicate API - fofr/face-to-many
+        // Uses InstantID internally with preset styles for fast, high-fidelity face generation
+        console.log("Generating with fofr/face-to-many...");
         const output = await replicate.run(
-            "zsxkib/instant-id:2e4785a4d80dadf580077b2244c8d7c05d8e3faac04a04c02d8e099dd2876789",
+            "fofr/face-to-many:a07f252abbbd832009640b27f063ea52d87d7a23a185ca165bec23b5adc8deaf",
             {
                 input: {
-                    image: `data:image/jpeg;base64,${image}`, // Identity Source
-                    pose_image: `data:image/jpeg;base64,${image}`, // Pose Source (Use user's pose)
-                    prompt: `${prompt}, photorealistic, 8k, highly detailed, cinematic lighting`,
-                    negative_prompt: "bad quality, worst quality, low resolution, blurry, distorted face, bad anatomy, bad eyes, crossed eyes, disfigured, extra fingers, cartoon, anime, illustration",
-                    sdxl_weights: "juggernaut-xl-v8", // High quality photorealism
-                    ip_adapter_scale: 0.8, // Strong identity
-                    controlnet_conditioning_scale: 0.8, // Strong pose control
-
-                    // PERFORMANCE OPTIMIZATION: Enable LCM (Latent Consistency Model)
-                    enable_lcm: true, // drastically speeds up generation (2 mins -> ~5-10 seconds)
-                    lcm_num_inference_steps: 5, // Very few steps needed for LCM
-                    lcm_guidance_scale: 1.5,
-
-                    num_inference_steps: 30, // Fallback if LCM fails, but LCM overrides this logic usually
-                    guidance_scale: 5,
-                    scheduler: "EulerDiscreteScheduler",
-                    width: 832,
-                    height: 1216,
-                    num_outputs: 1,
-                    output_format: "webp",
-                    output_quality: 95,
-                    disable_safety_checker: false,
-                    enhance_nonface_region: true
+                    image: `data:image/jpeg;base64,${image}`,
+                    style: "3D", // Options: 3D, Emoji, Video game, Pixels, Clay, Toy
+                    prompt: prompt, // Theme-specific prompt
+                    lora_scale: 1,
+                    negative_prompt: "ugly, blurry, low quality, distorted",
+                    prompt_strength: 4.5,
+                    denoising_strength: 0.65,
+                    instant_id_strength: 1.0, // Maximum identity preservation
+                    control_depth_strength: 0.8
                 },
             }
         );
 
-        if (!output || output.length === 0) {
-            return res.status(500).json({ error: "InstantID görsel üretemedi" });
+        if (!output) {
+            return res.status(500).json({ error: "AI görsel üretemedi" });
         }
 
-        // Get the image and return
-        // InstantID output should be an array of URIs
-        const imageUrl = output[0];
+        // fofr/face-to-many returns a single URL string
+        const imageUrl = typeof output === 'string' ? output : output[0];
         const imageResponse = await fetch(imageUrl);
         const imageBuffer = await imageResponse.arrayBuffer();
         const base64Image = Buffer.from(imageBuffer).toString("base64");
