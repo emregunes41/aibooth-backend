@@ -82,9 +82,14 @@ export default async function handler(req, res) {
                     sdxl_weights: "juggernaut-xl-v8", // High quality photorealism
                     ip_adapter_scale: 0.8, // Strong identity
                     controlnet_conditioning_scale: 0.8, // Strong pose control
-                    num_inference_steps: 30, // Standard steps for quality
+
+                    // PERFORMANCE OPTIMIZATION: Enable LCM (Latent Consistency Model)
+                    enable_lcm: true, // drastically speeds up generation (2 mins -> ~5-10 seconds)
+                    lcm_num_inference_steps: 5, // Very few steps needed for LCM
+                    lcm_guidance_scale: 1.5,
+
+                    num_inference_steps: 30, // Fallback if LCM fails, but LCM overrides this logic usually
                     guidance_scale: 5,
-                    enable_lcm: false, // Turn off LCM for better quality
                     scheduler: "EulerDiscreteScheduler",
                     width: 832,
                     height: 1216,
